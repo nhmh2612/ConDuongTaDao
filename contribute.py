@@ -9,9 +9,17 @@ import sys
 
 
 def main(def_args=sys.argv[1:]):
+    """
+    Hàm chính xử lý luồng thực thi:
+    - Nhận tham số từ dòng lệnh.
+    - Tạo repository và thực hiện commit dựa trên các thông số đầu vào.
+    """
+    # Phân tích tham số dòng lệnh
     args = arguments(def_args)
-    curr_date = datetime.now()
-    directory = 'repository-' + curr_date.strftime('%Y-%m-%d-%H-%M-%S')
+    curr_date = datetime.now()  # Ngày giờ hiện tại
+    directory = 'repository-' + curr_date.strftime('%Y-%m-%d-%H-%M-%S')  # Tên thư mục mới dựa trên timestamp
+    
+    # Nếu có repository từ xa, tạo thư mục dựa trên tên repository
     repository = args.repository
     user_name = args.user_name
     user_email = args.user_email
@@ -19,68 +27,87 @@ def main(def_args=sys.argv[1:]):
         start = repository.rfind('/') + 1
         end = repository.rfind('.')
         directory = repository[start:end]
-    no_weekends = args.no_weekends
-    frequency = args.frequency
-    days_before = args.days_before
+    
+    no_weekends = args.no_weekends  # Tùy chọn không commit vào cuối tuần
+    frequency = args.frequency      # Tần suất commit (% ngày)
+    days_before = args.days_before  # Số ngày trước hiện tại để commit
     if days_before < 0:
-        sys.exit('days_before must not be negative')
-    days_after = args.days_after
+        sys.exit('days_before must not be negative')  # Kiểm tra giá trị âm
+    days_after = args.days_after  # Số ngày sau hiện tại để commit
     if days_after < 0:
-        sys.exit('days_after must not be negative')
+        sys.exit('days_after must not be negative')  # Kiểm tra giá trị âm
+    
+    # Tạo thư mục repository và chuyển vào đó
     os.mkdir(directory)
     os.chdir(directory)
-    run(['git', 'init', '-b', 'main'])
+    run(['git', 'init', '-b', 'main'])  # Khởi tạo Git repository
 
+    # Cấu hình tên và email nếu được cung cấp
     if user_name is not None:
         run(['git', 'config', 'user.name', user_name])
-
     if user_email is not None:
         run(['git', 'config', 'user.email', user_email])
 
+    # Tính toán ngày bắt đầu
     start_date = curr_date.replace(hour=20, minute=0) - timedelta(days_before)
-    for day in (start_date + timedelta(n) for n
-                in range(days_before + days_after)):
-        if (not no_weekends or day.weekday() < 5) \
-                and randint(0, 100) < frequency:
-            for commit_time in (day + timedelta(minutes=m)
-                                for m in range(contributions_per_day(args))):
-                contribute(commit_time)
+    for day in (start_date + timedelta(n) for n in range(days_before + days_after)):
+        # Nếu không có tùy chọn --no_weekends hoặc không phải cuối tuần
+        if (not no_weekends or day.weekday() < 5) and randint(0, 100) < frequency:
+            for commit_time in (day + timedelta(minutes=m) for m in range(contributions_per_day(args))):
+                contribute(commit_time)  # Tạo commit tại thời điểm cụ thể
 
+    # Nếu có repository từ xa, đẩy thay đổi lên đó
     if repository is not None:
         run(['git', 'remote', 'add', 'origin', repository])
         run(['git', 'branch', '-M', 'main'])
         run(['git', 'push', '-u', 'origin', 'main'])
 
     print('\nRepository generation ' +
-          '\x1b[6;30;42mcompleted successfully\x1b[0m!')
+          '\x1b[6;30;42mcompleted successfully\x1b[0m!')  # Thông báo thành công
 
 
 def contribute(date):
+    """
+    Tạo commit tại thời điểm cụ thể.
+    - Ghi nội dung vào file `README.md`.
+    - Thực hiện `git add` và `git commit`.
+    """
     with open(os.path.join(os.getcwd(), 'README.md'), 'a') as file:
-        file.write(message(date) + '\n\n')
-    run(['git', 'add', '.'])
-    run(['git', 'commit', '-m', '"%s"' % message(date),
-         '--date', date.strftime('"%Y-%m-%d %H:%M:%S"')])
+        file.write(message(date) + '\n\n')  # Ghi thông điệp commit vào file README.md
+    run(['git', 'add', '.'])  # Thêm tất cả thay đổi
+    run(['git', 'commit', '-m', '"%s"' % message(date), '--date', date.strftime('"%Y-%m-%d %H:%M:%S"')])  # Commit với thời gian tùy chỉnh
 
 
 def run(commands):
-    Popen(commands).wait()
+    """
+    Chạy các lệnh shell thông qua subprocess.
+    """
+    Popen(commands).wait()  # Chờ lệnh hoàn thành
 
 
 def message(date):
-    return date.strftime('Contribution: %Y-%m-%d %H:%M')
+    """
+    Sinh thông điệp commit dựa trên ngày tháng.
+    """
+    return date.strftime('Contribution: %Y-%m-%d %H:%M')  # Trả về chuỗi như "Contribution: 2024-11-26 20:15"
 
 
 def contributions_per_day(args):
+    """
+    Xác định số commit sẽ thực hiện trong một ngày (ngẫu nhiên từ 1 đến `max_commits`).
+    """
     max_c = args.max_commits
-    if max_c > 20:
+    if max_c > 20:  # Giới hạn số commit tối đa là 20
         max_c = 20
-    if max_c < 1:
+    if max_c < 1:  # Số commit tối thiểu là 1
         max_c = 1
-    return randint(1, max_c)
+    return randint(1, max_c)  # Trả về số commit ngẫu nhiên
 
 
 def arguments(argsval):
+    """
+    Xử lý tham số dòng lệnh.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('-nw', '--no_weekends',
                         required=False, action='store_true', default=False,
@@ -121,8 +148,8 @@ def arguments(argsval):
                         adding commits. For example: if it is set to 30 the
                         last commit will be on a future date which is the
                         current date plus 30 days.""")
-    return parser.parse_args(argsval)
+    return parser.parse_args(argsval)  # Trả về các tham số đã phân tích
 
 
 if __name__ == "__main__":
-    main()
+    main()  # Chạy script
